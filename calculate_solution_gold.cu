@@ -53,7 +53,7 @@ void calculate_solution_gold(double w[M][N], double epsilon, double diff)
                     diff = fabs(w[i][j] - u[i][j]);
             }
         }
-        
+
         iterations++;
         if (iterations == iterations_print)
         {
@@ -72,30 +72,7 @@ void calculate_solution_gold(double w[M][N], double epsilon, double diff)
     printf("  CPU time = %f\n", ctime);
 }
 
-double cpu_time()
-
-//****************************************************************************80
-//
-//  Purpose:
-//
-//    CPU_TIME returns the current reading on the CPU clock.
-//
-//  Licensing:
-//
-//    This code is distributed under the GNU LGPL license.
-//
-//  Modified:
-//
-//    06 June 2005
-//
-//  Author:
-//
-//    John Burkardt
-//
-//  Parameters:
-//
-//    Output, double CPU_TIME, the current reading of the CPU clock, in seconds.
-//
+double cpu_time() 
 {
     double value;
 
@@ -103,3 +80,6 @@ double cpu_time()
 
     return value;
 }
+
+#undef M
+#undef N

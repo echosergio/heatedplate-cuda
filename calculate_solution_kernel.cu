@@ -82,3 +82,6 @@ void calculate_solution_kernel(double w[M][N], double epsilon, double diff)
     cudaFree(d_w);
     cudaFree(d_u);
 }
+
+#undef M
+#undef N
