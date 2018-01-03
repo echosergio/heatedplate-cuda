@@ -13,6 +13,7 @@
 #include <time.h>
 
 #include "calculate_solution_gold.cu"
+#include "calculate_solution_kernel.cu"
 
 #define M 50
 #define N 50
@@ -162,6 +163,14 @@ int main(int argc, char *argv[])
     initialize_grid(w);
 
     calculate_solution_gold(w, epsilon, diff);
+
+    printf("--1--  %f \n", w[1][23]);
+
+    initialize_grid(w);
+
+    calculate_solution_kernel(w, epsilon, diff);
+
+    printf("--2--  %f \n", w[1][23]);
 
     //  Write the solution to the output file.
     output = fopen(output_filename, "wt");

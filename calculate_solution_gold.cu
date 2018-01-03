@@ -53,6 +53,7 @@ void calculate_solution_gold(double w[M][N], double epsilon, double diff)
                     diff = fabs(w[i][j] - u[i][j]);
             }
         }
+        
         iterations++;
         if (iterations == iterations_print)
         {
