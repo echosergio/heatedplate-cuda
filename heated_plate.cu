@@ -12,11 +12,12 @@
 #include <math.h>
 #include <time.h>
 
-//using namespace std;
+#include "calculate_solution_gold.cu"
 
-double cpu_time();
+#define M 50
+#define N 50
 
-//****************************************************************************80
+void initialize_grid(double w[M][N]);
 
 int main(int argc, char *argv[])
 
@@ -121,204 +122,122 @@ int main(int argc, char *argv[])
 //    Local, double W[M][N], the solution computed at the latest iteration.
 //
 {
-#define M 500
-#define N 500
+    double diff;
+    double epsilon;
+    int i;
+    int j;
+    FILE *output;
+    char output_filename[80];
+    int success;
+    double w[M][N];
 
-  double ctime;
-  double ctime1;
-  double ctime2;
-  double diff;
-  double epsilon;
-  int i;
-  int iterations;
-  int iterations_print;
-  int j;
-  double mean;
-  FILE *output;
-  char output_filename[80];
-  int success;
-  double u[M][N];
-  double w[M][N];
-
-  printf("\n");
-  printf("HEATED_PLATE <epsilon> <fichero-salida>\n");
-  printf("  C/serie version\n");
-  printf("  A program to solve for the steady state temperature distribution\n");
-  printf("  over a rectangular plate.\n");
-  printf("\n");
-  printf("  Spatial grid of %d by %d points.\n", M, N);
-
-  //
-  //  Read EPSILON from the command line or the user.
-  //
-  epsilon = atof(argv[1]);
-  printf("The iteration will be repeated until the change is <= %lf\n", epsilon);
-  diff = epsilon;
-  //
-  //  Read OUTPUT_FILE from the command line or the user.
-  //
-  success = sscanf(argv[2], "%s", output_filename);
-  if (success != 1)
-  {
     printf("\n");
-    printf("HEATED_PLATE\n");
-    printf(" Error en la lectura del nombre del fichero de salida\n");
-    return 1;
-  }
+    printf("HEATED_PLATE <epsilon> <fichero-salida>\n");
+    printf("  C/serie version\n");
+    printf("  A program to solve for the steady state temperature distribution\n");
+    printf("  over a rectangular plate.\n");
+    printf("\n");
+    printf("  Spatial grid of %d by %d points.\n", M, N);
 
-  printf("  The steady state solution will be written to %s\n", output_filename);
+    //
+    //  Read EPSILON from the command line or the user.
+    //
+    epsilon = atof(argv[1]);
+    printf("The iteration will be repeated until the change is <= %lf\n", epsilon);
+    diff = epsilon;
+    //
+    //  Read OUTPUT_FILE from the command line or the user.
+    //
+    success = sscanf(argv[2], "%s", output_filename);
+    if (success != 1)
+    {
+        printf("\n");
+        printf("HEATED_PLATE\n");
+        printf(" Error en la lectura del nombre del fichero de salida\n");
+        return 1;
+    }
 
-  //
-  //  Set the boundary values, which don't change.
-  //
-  for (i = 1; i < M - 1; i++)
-    w[i][0] = 100.0;
+    printf("  The steady state solution will be written to %s\n", output_filename);
 
-  for (i = 1; i < M - 1; i++)
-    w[i][N - 1] = 100.0;
+    initialize_grid(w);
 
-  for (j = 0; j < N; j++)
-    w[M - 1][j] = 100.0;
+    calculate_solution_gold(w, epsilon, diff);
 
-  for (j = 0; j < N; j++)
-    w[0][j] = 0.0;
-    
-  //  Average the boundary values, to come up with a reasonable
-  //  initial value for the interior.
-  mean = 0.0;
-  for (i = 1; i < M - 1; i++)
-    mean = mean + w[i][0];
+    //  Write the solution to the output file.
+    output = fopen(output_filename, "wt");
 
-  for (i = 1; i < M - 1; i++)
-    mean = mean + w[i][N - 1];
-
-  for (j = 0; j < N; j++)
-    mean = mean + w[M - 1][j];
-
-  for (j = 0; j < N; j++)
-    mean = mean + w[0][j];
-
-  mean = mean / (double)(2 * M + 2 * N - 4);
-
-  printf("\n");
-  //printf ( "  MEAN = %lf\n", mean );
-
-  //  Initialize the interior solution to the mean value.
-
-  for (i = 1; i < M - 1; i++)
-    for (j = 1; j < N - 1; j++)
-      w[i][j] = mean;
-
-  //  iterate until the  new solution W differs from the old solution U
-  //  by no more than EPSILON.
-
-  iterations = 0;
-  iterations_print = 1;
-  printf("\n");
-  printf(" Iteration  Change\n");
-  printf("\n");
-
-  ctime1 = cpu_time();
-  while (epsilon <= diff)
-  {
-    //  Save the old solution in U.
+    fprintf(output, "%d\n", M);
+    fprintf(output, "%d\n", N);
 
     for (i = 0; i < M; i++)
-      for (j = 0; j < N; j++)
-        u[i][j] = w[i][j];
+    {
+        for (j = 0; j < N; j++)
+        {
+            fprintf(output, "%lg ", w[i][j]);
+        }
+        fprintf(output, "\n");
+    }
+    fclose(output);
 
-    //  Determine the new estimate of the solution at the interior points.
-    //  The new solution W is the average of north, south, east and west neighbors.
+    printf("\n");
+    printf(" Solucion escrita en el fichero %s\n", output_filename);
+    //
+    //  Terminate.
+    //
+    printf("\n");
+    printf("HEATED_PLATE_Serie:\n");
+    printf("  Normal end of execution.\n");
 
-    diff = 0.0;
+    return 0;
+}
+
+void initialize_grid(double w[M][N])
+{
+    int i;
+    int j;
+    double mean;
+
+    //
+    //  Set the boundary values, which don't change.
+    //
     for (i = 1; i < M - 1; i++)
-    {
-      for (j = 1; j < N - 1; j++)
-      {
-        w[i][j] = (u[i - 1][j] + u[i + 1][j] + u[i][j - 1] + u[i][j + 1]) / 4.0;
+        w[i][0] = 100.0;
 
-        if (diff < fabs(w[i][j] - u[i][j]))
-          diff = fabs(w[i][j] - u[i][j]);
-      }
-    }
-    iterations++;
-    if (iterations == iterations_print)
-    {
-      printf("  %8d  %lg\n", iterations, diff);
-      iterations_print = 2 * iterations_print;
-    }
-  } //fin while epsilon
+    for (i = 1; i < M - 1; i++)
+        w[i][N - 1] = 100.0;
 
-  ctime2 = cpu_time();
-  ctime = ctime2 - ctime1;
-
-  printf("\n");
-  printf("  %8d  %lg\n", iterations, diff);
-  printf("\n");
-  printf("  Error tolerance achieved.\n");
-  printf("  CPU time = %f\n", ctime);
-
-  //  Write the solution to the output file.
-  //
-  output = fopen(output_filename, "wt");
-
-  fprintf(output, "%d\n", M);
-  fprintf(output, "%d\n", N);
-
-  for (i = 0; i < M; i++)
-  {
     for (j = 0; j < N; j++)
-    {
-      fprintf(output, "%lg ", w[i][j]);
-    }
-    fprintf(output, "\n");
-  }
-  fclose(output);
+        w[M - 1][j] = 100.0;
 
-  printf("\n");
-  printf(" Solucion escrita en el fichero %s\n", output_filename);
-  //
-  //  Terminate.
-  //
-  printf("\n");
-  printf("HEATED_PLATE_Serie:\n");
-  printf("  Normal end of execution.\n");
+    for (j = 0; j < N; j++)
+        w[0][j] = 0.0;
 
-  return 0;
+    //  Average the boundary values, to come up with a reasonable
+    //  initial value for the interior.
+    mean = 0.0;
+    for (i = 1; i < M - 1; i++)
+        mean = mean + w[i][0];
+
+    for (i = 1; i < M - 1; i++)
+        mean = mean + w[i][N - 1];
+
+    for (j = 0; j < N; j++)
+        mean = mean + w[M - 1][j];
+
+    for (j = 0; j < N; j++)
+        mean = mean + w[0][j];
+
+    mean = mean / (double)(2 * M + 2 * N - 4);
+
+    printf("\n");
+    printf("  MEAN = %lf\n", mean);
+
+    //  Initialize the interior solution to the mean value.
+
+    for (i = 1; i < M - 1; i++)
+        for (j = 1; j < N - 1; j++)
+            w[i][j] = mean;
+}
 
 #undef M
 #undef N
-}
-//****************************************************************************80
-
-double cpu_time()
-
-//****************************************************************************80
-//
-//  Purpose:
-//
-//    CPU_TIME returns the current reading on the CPU clock.
-//
-//  Licensing:
-//
-//    This code is distributed under the GNU LGPL license.
-//
-//  Modified:
-//
-//    06 June 2005
-//
-//  Author:
-//
-//    John Burkardt
-//
-//  Parameters:
-//
-//    Output, double CPU_TIME, the current reading of the CPU clock, in seconds.
-//
-{
-  double value;
-
-  value = (double)clock() / (double)CLOCKS_PER_SEC;
-
-  return value;
-}
