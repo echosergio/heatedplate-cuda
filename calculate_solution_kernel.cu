@@ -1,5 +1,6 @@
 #define M 50
 #define N 50
+#define NUM_ELEMENTS 2500
 
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__))
 
@@ -29,7 +30,7 @@ __global__ void copy_grid(double *d_w, double *d_u)
     int x = threadIdx.x + blockDim.x * blockIdx.x;
     int y = threadIdx.y + blockDim.y * blockIdx.y;
 
-    if (x > 0 && y > 0 && x < M - 1 && y < N - 1)
+    if (x >= 0 && y >= 0 && x < M && y < N)
     {
         int index = x + y * N;
 
@@ -42,9 +43,35 @@ __global__ void copy_grid(double *d_w, double *d_u)
 
 __device__ double d_epsilon;
 
-__global__ void calculate_epsilon()
+__global__ void epsilon_reduction(double *d_w, double *d_u)
 {
-    d_epsilon = 0.00001;
+    int stride;
+    double temp[NUM_ELEMENTS];
+
+    int x = threadIdx.x + blockDim.x * blockIdx.x;
+    int y = threadIdx.y + blockDim.y * blockIdx.y;
+
+    if (x >= 0 && y >= 0 && x < M && y < N)
+    {
+        int index = x + y * N;
+
+        temp[index] = fabs(d_w[index] - d_u[index]);
+        __syncthreads();
+
+        for (stride = NUM_ELEMENTS / 2; stride >= 1; stride /= 2)
+        {
+            if (index < stride && temp[index] < temp[index + stride])
+            {
+                temp[index] = temp[index + stride];
+            }
+            __syncthreads();
+        }
+    }
+
+    if (x == 1 && y == 1)
+    {
+        d_epsilon = temp[1 + 1 * N];
+    }
 
     return;
 }
@@ -61,11 +88,12 @@ __global__ void calculate_solution(double *d_w, double *d_u)
     if (x > 0 && y > 0 && x < M - 1 && y < N - 1)
     {
         int index = x + y * N;
+
         int left = (x - 1) + y * N;
         int right = (x + 1) + y * N;
-        int top = x + (y -1) * N;
+        int top = x + (y - 1) * N;
         int bottom = x + (y + 1) * N;
-        
+
         d_w[index] = (d_u[left] + d_u[right] + d_u[top] + d_u[bottom]) / 4.0;
         __syncthreads();
     }
@@ -92,10 +120,8 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
     HANDLE_ERROR(cudaMemcpy(d_w, w, matrix_mem_size, cudaMemcpyHostToDevice));
 
     // Dimensions for a 2D matrix with max size 512
-    dim3 dimGrid(16, 16); // 256 blocks 
+    dim3 dimGrid(16, 16);  // 256 blocks
     dim3 dimBlock(32, 32); // 1024 threads
-
-    copy_grid<<<dimGrid,dimBlock>>>(d_w, d_u);
 
     diff = epsilon;
 
@@ -107,8 +133,10 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
 
     while (epsilon <= diff)
     {
-        calculate_solution<<<dimGrid,dimBlock>>>(d_w, d_u);
-        calculate_epsilon<<<dimGrid,dimBlock>>>();
+        copy_grid<<<dimGrid, dimBlock>>>(d_w, d_u);
+        calculate_solution<<<dimGrid, dimBlock>>>(d_w, d_u);
+        epsilon_reduction<<<dimGrid, dimBlock>>>(d_w, d_u);
+
         cudaDeviceSynchronize();
 
         HANDLE_ERROR(cudaMemcpyFromSymbol(&diff, d_epsilon, sizeof(double), 0, cudaMemcpyDeviceToHost));

@@ -160,16 +160,10 @@ int main(int argc, char *argv[])
     printf("  The steady state solution will be written to %s\n", output_filename);
 
     initialize_grid(w);
-
     calculate_solution_gold(w, epsilon);
 
-    printf("--1--  %f \n", w[1][23]);
-
     initialize_grid(w);
-
     calculate_solution_kernel(w, epsilon);
-
-    printf("--2--  %f \n", w[1][23]);
 
     //  Write the solution to the output file.
     output = fopen(output_filename, "wt");
