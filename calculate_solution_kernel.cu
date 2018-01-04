@@ -35,8 +35,13 @@ __global__ void calculate_solution(double *w, double *u, double epsilon, double 
 
     if (x > 0 && y > 0 && x < M - 1 && y < N - 1)
     {
-        //printf("Hello from x %d and y %d and value %f\n", x, y, u[x * M + y]);
-        //w[x * M + y] = (u[x * M + (y - 1)] + u[(x - 1) * M + y] + u[x * M + (y + 1)] + u[(x + 1) * M + y]) / 4.0;
+        int index = x + y * N;
+        int left = (x - 1) + y * N;
+        int right = (x + 1) + y * N;
+        int top = x + (y -1) * N;
+        int bottom = x + (y + 1) * N;
+        
+        w[index] = (u[left] + u[right] + u[top] + u[bottom]) / 4.0;
         __syncthreads();
     }
 
@@ -55,7 +60,6 @@ void calculate_solution_kernel(double w[M][N], double epsilon, double diff)
             u[i][j] = w[i][j];
 
     const unsigned int matrix_mem_size = sizeof(double) * M * N;
-    //HANDLE_ERROR(cudaMalloc(&d_a, N*sizeof(char)));
 
     double *d_w = (double *)malloc(matrix_mem_size);
     double *d_u = (double *)malloc(matrix_mem_size);
@@ -67,11 +71,12 @@ void calculate_solution_kernel(double w[M][N], double epsilon, double diff)
     // Copy from host memory to device memory
     HANDLE_ERROR(cudaMemcpy(d_u, u, matrix_mem_size, cudaMemcpyHostToDevice));
 
-    dim3 dimGrid(1, 1);
-    dim3 dimBlock(M, N);
+    // Dimensions for a 2D matrix with max size 512
+    dim3 dimGrid(16, 16); // 256 blocks 
+    dim3 dimBlock(32, 32); // 1024 threads
 
     // Invoke the kernel
-    calculate_solution<<<1, 1024>>>(d_w, d_u, epsilon, diff);
+    calculate_solution<<<dimGrid,dimBlock>>>(d_w, d_u, epsilon, diff);
 
     cudaDeviceSynchronize();
     CHECK_CUDA_ERROR("kernel invocation");
