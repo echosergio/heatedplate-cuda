@@ -32,9 +32,19 @@ __global__ void copy_grid(double *d_w, double *d_u)
     if (x > 0 && y > 0 && x < M - 1 && y < N - 1)
     {
         int index = x + y * N;
+
         d_u[index] = d_w[index];
         __syncthreads();
     }
+
+    return;
+}
+
+__device__ double d_epsilon;
+
+__global__ void calculate_epsilon()
+{
+    d_epsilon = 0.00001;
 
     return;
 }
@@ -43,7 +53,7 @@ __global__ void copy_grid(double *d_w, double *d_u)
 //! @param g_idata  input data in global memory
 //                  result is expected in index 0 of g_idata
 //! @param n        input number of elements to scan from input data
-__global__ void calculate_solution(double *d_w, double *d_u, double epsilon, double diff)
+__global__ void calculate_solution(double *d_w, double *d_u)
 {
     int x = threadIdx.x + blockDim.x * blockIdx.x;
     int y = threadIdx.y + blockDim.y * blockIdx.y;
@@ -63,8 +73,12 @@ __global__ void calculate_solution(double *d_w, double *d_u, double epsilon, dou
     return;
 }
 
-void calculate_solution_kernel(double w[M][N], double epsilon, double diff)
+void calculate_solution_kernel(double w[M][N], double epsilon)
 {
+    double diff;
+    int iterations;
+    int iterations_print;
+
     const unsigned int matrix_mem_size = sizeof(double) * M * N;
 
     double *d_w = (double *)malloc(matrix_mem_size);
@@ -83,11 +97,37 @@ void calculate_solution_kernel(double w[M][N], double epsilon, double diff)
 
     copy_grid<<<dimGrid,dimBlock>>>(d_w, d_u);
 
-    // Invoke the kernel
-    calculate_solution<<<dimGrid,dimBlock>>>(d_w, d_u, epsilon, diff);
+    diff = epsilon;
 
-    cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR("kernel invocation");
+    iterations = 0;
+    iterations_print = 1;
+    printf("\n");
+    printf(" Iteration  Change\n");
+    printf("\n");
+
+    while (epsilon <= diff)
+    {
+        calculate_solution<<<dimGrid,dimBlock>>>(d_w, d_u);
+        calculate_epsilon<<<dimGrid,dimBlock>>>();
+        cudaDeviceSynchronize();
+
+        HANDLE_ERROR(cudaMemcpyFromSymbol(&diff, d_epsilon, sizeof(double), 0, cudaMemcpyDeviceToHost));
+
+        iterations++;
+        if (iterations == iterations_print)
+        {
+            printf("  %8d  %lg\n", iterations, diff);
+            iterations_print = 2 * iterations_print;
+        }
+    }
+
+    CHECK_CUDA_ERROR("Kernel invocation");
+
+    printf("\n");
+    printf("  %8d  %lg\n", iterations, diff);
+    printf("\n");
+    printf("  Error tolerance achieved.\n");
+    //printf("  CPU time = %f\n", ctime);
 
     // Copy from device memory back to host memory
     HANDLE_ERROR(cudaMemcpy(w, d_w, matrix_mem_size, cudaMemcpyDeviceToHost));

@@ -8,8 +8,9 @@ double cpu_time();
 #define M 50
 #define N 50
 
-void calculate_solution_gold(double w[M][N], double epsilon, double diff)
+void calculate_solution_gold(double w[M][N], double epsilon)
 {
+    double diff;
     double ctime;
     double ctime1;
     double ctime2;
@@ -19,6 +20,7 @@ void calculate_solution_gold(double w[M][N], double epsilon, double diff)
     int iterations_print;
 
     double u[M][N];
+    diff = epsilon;
 
     //  iterate until the  new solution W differs from the old solution U
     //  by no more than EPSILON.

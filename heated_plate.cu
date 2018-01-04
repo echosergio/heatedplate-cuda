@@ -123,7 +123,6 @@ int main(int argc, char *argv[])
 //    Local, double W[M][N], the solution computed at the latest iteration.
 //
 {
-    double diff;
     double epsilon;
     int i;
     int j;
@@ -145,7 +144,7 @@ int main(int argc, char *argv[])
     //
     epsilon = atof(argv[1]);
     printf("The iteration will be repeated until the change is <= %lf\n", epsilon);
-    diff = epsilon;
+    
     //
     //  Read OUTPUT_FILE from the command line or the user.
     //
@@ -162,13 +161,13 @@ int main(int argc, char *argv[])
 
     initialize_grid(w);
 
-    calculate_solution_gold(w, epsilon, diff);
+    calculate_solution_gold(w, epsilon);
 
     printf("--1--  %f \n", w[1][23]);
 
     initialize_grid(w);
 
-    calculate_solution_kernel(w, epsilon, diff);
+    calculate_solution_kernel(w, epsilon);
 
     printf("--2--  %f \n", w[1][23]);
 
