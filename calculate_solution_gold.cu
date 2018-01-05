@@ -5,8 +5,8 @@
 
 double cpu_time();
 
-#define M 64
-#define N 64
+#define M 500
+#define N 500
 
 void calculate_solution_gold(double w[M][N], double epsilon)
 {

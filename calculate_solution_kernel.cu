@@ -1,6 +1,6 @@
-#define M 64
-#define N 64
-#define NUM_ELEMENTS 4096
+#define M 500
+#define N 500
+#define NUM_ELEMENTS M * N 
 
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__))
 
@@ -163,3 +163,4 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
 
 #undef M
 #undef N
+#undef NUM_ELEMENTS
