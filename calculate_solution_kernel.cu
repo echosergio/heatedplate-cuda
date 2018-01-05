@@ -1,6 +1,6 @@
-#define M 50
-#define N 50
-#define NUM_ELEMENTS 2500
+#define M 64
+#define N 64
+#define NUM_ELEMENTS 4096
 
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__))
 
@@ -43,11 +43,10 @@ __global__ void copy_grid(double *d_w, double *d_u)
 
 __device__ double d_epsilon;
 
+__device__ double epsilon_reduction_max[NUM_ELEMENTS];
+
 __global__ void epsilon_reduction(double *d_w, double *d_u)
 {
-    int stride;
-    double temp[NUM_ELEMENTS];
-
     int x = threadIdx.x + blockDim.x * blockIdx.x;
     int y = threadIdx.y + blockDim.y * blockIdx.y;
 
@@ -55,22 +54,20 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
     {
         int index = x + y * N;
 
-        temp[index] = fabs(d_w[index] - d_u[index]);
+        epsilon_reduction_max[index] = fabs(d_w[index] - d_u[index]);
         __syncthreads();
 
-        for (stride = NUM_ELEMENTS / 2; stride >= 1; stride /= 2)
+        for (unsigned int stride = NUM_ELEMENTS / 2; stride > 0; stride >>= 1)
         {
-            if (index < stride && temp[index] < temp[index + stride])
-            {
-                temp[index] = temp[index + stride];
-            }
+            if (index < stride)
+                epsilon_reduction_max[index] = max(epsilon_reduction_max[index], epsilon_reduction_max[index + stride]); 
             __syncthreads();
         }
     }
 
-    if (x == 1 && y == 1)
+    if (x == 0 && y == 0)
     {
-        d_epsilon = temp[1 + 1 * N];
+        d_epsilon = epsilon_reduction_max[x + y * N];
     }
 
     return;

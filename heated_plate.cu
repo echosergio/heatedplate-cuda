@@ -15,8 +15,8 @@
 #include "calculate_solution_gold.cu"
 #include "calculate_solution_kernel.cu"
 
-#define M 50
-#define N 50
+#define M 64
+#define N 64
 
 void initialize_grid(double w[M][N]);
 
