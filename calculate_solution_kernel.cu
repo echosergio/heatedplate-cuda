@@ -74,7 +74,7 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
             partial_epsilon_reduction_max[local_index] = d_epsilon_reduction_max[index];
             __syncthreads();
 
-            for (unsigned int stride = SHARED_MEMORY_ARRAY_SIZE / 2; stride > 0; stride >>= 1)
+            for (unsigned int stride = SHARED_MEMORY_ARRAY_SIZE / 2; stride > 0; stride /= 2)
             {
                 if (local_index < stride)
                     partial_epsilon_reduction_max[local_index] = max(partial_epsilon_reduction_max[local_index], partial_epsilon_reduction_max[local_index + stride]);
@@ -82,25 +82,22 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
             }
 
             if (local_index == 0)
-            {
-                int d_epsilon_reduction_max_index = index / SHARED_MEMORY_ARRAY_SIZE;
-                d_epsilon_reduction_max[d_epsilon_reduction_max_index] = partial_epsilon_reduction_max[local_index];
-            }
+                d_epsilon_reduction_max[(int)(index / SHARED_MEMORY_ARRAY_SIZE)] = partial_epsilon_reduction_max[local_index];
 
             if (index == 0)
-            {
-                d_stride_shared_counter = NUM_ELEMENTS / SHARED_MEMORY_ARRAY_SIZE; // mal es constante
-            }
+                d_stride_shared_counter /= SHARED_MEMORY_ARRAY_SIZE;
+
             __syncthreads();
         }
 
-        if(index < 256)
+        if(index < SHARED_MEMORY_ARRAY_SIZE)
         {
             partial_epsilon_reduction_max[index] = 0;
+            __syncthreads();
             partial_epsilon_reduction_max[index] = d_epsilon_reduction_max[index];
             __syncthreads();
 
-            for (unsigned int stride = 256 / 2; stride > 0; stride >>= 1)
+            for (unsigned int stride = SHARED_MEMORY_ARRAY_SIZE / 2; stride > 0; stride /= 2)
             {
                 if (index < stride)
                     partial_epsilon_reduction_max[index] = max(partial_epsilon_reduction_max[index], partial_epsilon_reduction_max[index + stride]);
@@ -109,9 +106,7 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
         }
 
         if (index == 0)
-        {
             d_epsilon = partial_epsilon_reduction_max[index];
-        }
         __syncthreads();
     }
 
