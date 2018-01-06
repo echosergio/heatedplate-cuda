@@ -159,8 +159,8 @@ int main(int argc, char *argv[])
 
     printf("  The steady state solution will be written to %s\n", output_filename);
 
-    //initialize_grid(w);
-    //calculate_solution_gold(w, epsilon);
+    initialize_grid(w);
+    calculate_solution_gold(w, epsilon);
 
     initialize_grid(w);
     calculate_solution_kernel(w, epsilon);

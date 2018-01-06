@@ -31,13 +31,10 @@ __global__ void copy_grid(double *d_w, double *d_u)
     int x = threadIdx.x + blockDim.x * blockIdx.x;
     int y = threadIdx.y + blockDim.y * blockIdx.y;
 
-    if (x >= 0 && y >= 0 && x < M && y < N)
-    {
-        int index = x + y * N;
+    if (x < M && y < N)
+        d_u[x + y * N] = d_w[x + y * N];
 
-        d_u[index] = d_w[index];
-        __syncthreads();
-    }
+    __syncthreads();
 
     return;
 }
@@ -55,18 +52,16 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
     int x = threadIdx.x + blockDim.x * blockIdx.x;
     int y = threadIdx.y + blockDim.y * blockIdx.y;
 
-    if (x >= 0 && y >= 0 && x < M && y < N)
+    if (x < M && y < N)
     {
         int index = x + y * N;
 
         if (index == 0)
-        {
             d_stride_shared_counter = NUM_ELEMENTS;
-        }
-        __syncthreads();
+        __threadfence();
 
         d_epsilon_reduction_max[index] = fabs(d_w[index] - d_u[index]);
-        __syncthreads();
+        __threadfence();
 
         while (d_stride_shared_counter > SHARED_MEMORY_ARRAY_SIZE)
         {
@@ -83,17 +78,18 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
 
             if (local_index == 0)
                 d_epsilon_reduction_max[(int)(index / SHARED_MEMORY_ARRAY_SIZE)] = partial_epsilon_reduction_max[local_index];
+            __threadfence();
 
             if (index == 0)
                 d_stride_shared_counter /= SHARED_MEMORY_ARRAY_SIZE;
-
-            __syncthreads();
+            __threadfence();
         }
 
         if(index < SHARED_MEMORY_ARRAY_SIZE)
         {
             partial_epsilon_reduction_max[index] = 0;
             __syncthreads();
+            
             partial_epsilon_reduction_max[index] = d_epsilon_reduction_max[index];
             __syncthreads();
 
@@ -103,11 +99,11 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
                     partial_epsilon_reduction_max[index] = max(partial_epsilon_reduction_max[index], partial_epsilon_reduction_max[index + stride]);
                 __syncthreads();
             }
-        }
 
-        if (index == 0)
-            d_epsilon = partial_epsilon_reduction_max[index];
-        __syncthreads();
+            if (index == 0)
+                d_epsilon = partial_epsilon_reduction_max[index];
+            __threadfence();
+        }
     }
 
     return;
@@ -132,8 +128,8 @@ __global__ void calculate_solution(double *d_w, double *d_u)
         int bottom = x + (y + 1) * N;
 
         d_w[index] = (d_u[left] + d_u[right] + d_u[top] + d_u[bottom]) / 4.0;
-        __syncthreads();
     }
+    __syncthreads();
 
     return;
 }
