@@ -34,7 +34,7 @@ __global__ void copy_grid(double *d_w, double *d_u)
     if (x < M && y < N)
         d_u[x + y * N] = d_w[x + y * N];
 
-    __syncthreads();
+    __threadfence();
 
     return;
 }
@@ -85,11 +85,11 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
             __threadfence();
         }
 
-        if(index < SHARED_MEMORY_ARRAY_SIZE)
+        if (index < SHARED_MEMORY_ARRAY_SIZE)
         {
             partial_epsilon_reduction_max[index] = 0;
             __syncthreads();
-            
+
             partial_epsilon_reduction_max[index] = d_epsilon_reduction_max[index];
             __syncthreads();
 
@@ -129,7 +129,8 @@ __global__ void calculate_solution(double *d_w, double *d_u)
 
         d_w[index] = (d_u[left] + d_u[right] + d_u[top] + d_u[bottom]) / 4.0;
     }
-    __syncthreads();
+
+    __threadfence();
 
     return;
 }
