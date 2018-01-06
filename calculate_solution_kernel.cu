@@ -1,6 +1,7 @@
 #define M 500
 #define N 500
-#define NUM_ELEMENTS M * N 
+#define NUM_ELEMENTS M *N
+#define SHARED_MEMORY_ARRAY_SIZE 1024
 
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__))
 
@@ -43,10 +44,14 @@ __global__ void copy_grid(double *d_w, double *d_u)
 
 __device__ double d_epsilon;
 
-__device__ double epsilon_reduction_max[NUM_ELEMENTS];
+__device__ double d_epsilon_reduction_max[NUM_ELEMENTS];
+
+__device__ int d_stride_shared_counter;
 
 __global__ void epsilon_reduction(double *d_w, double *d_u)
 {
+    __shared__ double partial_epsilon_reduction_max[SHARED_MEMORY_ARRAY_SIZE];
+
     int x = threadIdx.x + blockDim.x * blockIdx.x;
     int y = threadIdx.y + blockDim.y * blockIdx.y;
 
@@ -54,20 +59,63 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
     {
         int index = x + y * N;
 
-        epsilon_reduction_max[index] = fabs(d_w[index] - d_u[index]);
+        if (index == 0)
+        {
+            d_stride_shared_counter = NUM_ELEMENTS;
+        }
         __syncthreads();
 
-        for (unsigned int stride = NUM_ELEMENTS / 2; stride > 0; stride >>= 1)
+        d_epsilon_reduction_max[index] = fabs(d_w[index] - d_u[index]);
+        __syncthreads();
+
+        while (d_stride_shared_counter > SHARED_MEMORY_ARRAY_SIZE)
         {
-            if (index < stride)
-                epsilon_reduction_max[index] = max(epsilon_reduction_max[index], epsilon_reduction_max[index + stride]); 
+            int local_index = index % SHARED_MEMORY_ARRAY_SIZE;
+            partial_epsilon_reduction_max[local_index] = d_epsilon_reduction_max[index];
+            __syncthreads();
+
+            for (unsigned int stride = SHARED_MEMORY_ARRAY_SIZE / 2; stride > 0; stride >>= 1)
+            {
+                if (local_index < stride)
+                    partial_epsilon_reduction_max[local_index] = max(partial_epsilon_reduction_max[local_index], partial_epsilon_reduction_max[local_index + stride]);
+                __syncthreads();
+            }
+
+            if (local_index == 0)
+            {
+                int d_epsilon_reduction_max_index = index / SHARED_MEMORY_ARRAY_SIZE;
+                d_epsilon_reduction_max[d_epsilon_reduction_max_index] = partial_epsilon_reduction_max[local_index];
+            }
+
+            if (index == 0)
+            {
+                d_stride_shared_counter = NUM_ELEMENTS / SHARED_MEMORY_ARRAY_SIZE;
+            }
             __syncthreads();
         }
-    }
 
-    if (x == 0 && y == 0)
-    {
-        d_epsilon = epsilon_reduction_max[x + y * N];
+        int local_index = index % SHARED_MEMORY_ARRAY_SIZE;
+            partial_epsilon_reduction_max[local_index] = d_epsilon_reduction_max[index];
+        __syncthreads();
+
+        for (unsigned int stride = d_stride_shared_counter / 2; stride > 0; stride >>= 1)
+        {
+            if (local_index < stride)
+                partial_epsilon_reduction_max[local_index] = max(partial_epsilon_reduction_max[local_index], partial_epsilon_reduction_max[local_index + stride]);
+            __syncthreads();
+        }
+
+        if (local_index == 0)
+        {
+            int d_epsilon_reduction_max_index = index / SHARED_MEMORY_ARRAY_SIZE;
+            d_epsilon_reduction_max[d_epsilon_reduction_max_index] = partial_epsilon_reduction_max[local_index];
+        }
+
+        if (index == 0)
+        {
+            d_epsilon = d_epsilon_reduction_max[index];
+        }
+        __syncthreads();
     }
 
     return;
