@@ -43,7 +43,7 @@ __device__ double d_epsilon;
 
 __device__ double d_epsilon_reduction_max[NUM_ELEMENTS];
 
-__device__ int d_stride_shared_counter;
+__device__ int d_epsilon_slice_counter;
 
 __global__ void epsilon_reduction(double *d_w, double *d_u)
 {
@@ -57,13 +57,13 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
         int index = x + y * N;
 
         if (index == 0)
-            d_stride_shared_counter = NUM_ELEMENTS;
+            d_epsilon_slice_counter = NUM_ELEMENTS;
         __threadfence();
 
         d_epsilon_reduction_max[index] = fabs(d_w[index] - d_u[index]);
         __threadfence();
 
-        while (d_stride_shared_counter > SHARED_MEMORY_ARRAY_SIZE)
+        while (d_epsilon_slice_counter > SHARED_MEMORY_ARRAY_SIZE)
         {
             int local_index = index % SHARED_MEMORY_ARRAY_SIZE;
             partial_epsilon_reduction_max[local_index] = d_epsilon_reduction_max[index];
@@ -81,7 +81,7 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
             __threadfence();
 
             if (index == 0)
-                d_stride_shared_counter /= SHARED_MEMORY_ARRAY_SIZE;
+                d_epsilon_slice_counter /= SHARED_MEMORY_ARRAY_SIZE;
             __threadfence();
         }
 
@@ -140,6 +140,11 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
     double diff;
     int iterations;
     int iterations_print;
+    float ElapsedTime;
+    cudaEvent_t cudaStart, cudaStop;
+
+    cudaEventCreate(&cudaStart);
+    cudaEventCreate(&cudaStop);
 
     const unsigned int matrix_mem_size = sizeof(double) * M * N;
 
@@ -165,6 +170,8 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
     printf(" Iteration  Change\n");
     printf("\n");
 
+    cudaEventRecord(cudaStart, 0);
+
     while (epsilon <= diff)
     {
         copy_grid<<<dimGrid, dimBlock>>>(d_w, d_u);
@@ -185,17 +192,24 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
 
     CHECK_CUDA_ERROR("Kernel invocation");
 
+    cudaEventRecord(cudaStop, 0);
+    cudaEventSynchronize(cudaStop);
+    cudaEventElapsedTime(&ElapsedTime, cudaStart, cudaStop);
+
     printf("\n");
     printf("  %8d  %lg\n", iterations, diff);
     printf("\n");
     printf("  Error tolerance achieved.\n");
-    //printf("  CPU time = %f\n", ctime);
+    printf("  CUDA time = %f\n", ElapsedTime / 1000);
 
     // Copy from device memory back to host memory
     HANDLE_ERROR(cudaMemcpy(w, d_w, matrix_mem_size, cudaMemcpyDeviceToHost));
 
     cudaFree(d_w);
     cudaFree(d_u);
+
+    cudaEventDestroy(cudaStart);
+    cudaEventDestroy(cudaStop);
 }
 
 #undef M
