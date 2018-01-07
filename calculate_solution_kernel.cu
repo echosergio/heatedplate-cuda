@@ -27,8 +27,8 @@ static void checkCUDAError(const char *msg, const char *file, int line)
 }
 
 // CUDA kernel to copy one matrix to other
-//! @param d_w source matrix 
-//! @param d_u destination matrix 
+//! @param d_w source matrix
+//! @param d_u destination matrix
 __global__ void copy_grid(double *d_w, double *d_u)
 {
     int x = threadIdx.x + blockDim.x * blockIdx.x;
@@ -91,6 +91,9 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
             __threadfence();
         }
 
+        __syncthreads();
+        __threadfence();
+
         if (index < SHARED_MEMORY_ARRAY_SIZE)
         {
             partial_epsilon_reduction_max[index] = 0;
@@ -116,8 +119,8 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
 }
 
 // CUDA kernel to calculate the steady state solution to the discrete heat equation
-//! @param d_w output matrix 
-//! @param d_u input matrix 
+//! @param d_w output matrix
+//! @param d_u input matrix
 __global__ void calculate_solution(double *d_w, double *d_u)
 {
     int x = threadIdx.x + blockDim.x * blockIdx.x;
