@@ -26,6 +26,9 @@ static void checkCUDAError(const char *msg, const char *file, int line)
     }
 }
 
+// CUDA kernel to copy one matrix to other
+//! @param d_w source matrix 
+//! @param d_u destination matrix 
 __global__ void copy_grid(double *d_w, double *d_u)
 {
     int x = threadIdx.x + blockDim.x * blockIdx.x;
@@ -45,6 +48,9 @@ __device__ double d_epsilon_reduction_max[NUM_ELEMENTS];
 
 __device__ int d_epsilon_slice_counter;
 
+// CUDA kernel to calculate the max value from the difference between two estimates of the solution
+//! @param d_w new matrix solution
+//! @param d_u previous matrix solution
 __global__ void epsilon_reduction(double *d_w, double *d_u)
 {
     __shared__ double partial_epsilon_reduction_max[SHARED_MEMORY_ARRAY_SIZE];
@@ -109,10 +115,9 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
     return;
 }
 
-// CUDA kernel to perform the reduction in parallel on the GPU
-//! @param g_idata  input data in global memory
-//                  result is expected in index 0 of g_idata
-//! @param n        input number of elements to scan from input data
+// CUDA kernel to calculate the steady state solution to the discrete heat equation
+//! @param d_w output matrix 
+//! @param d_u input matrix 
 __global__ void calculate_solution(double *d_w, double *d_u)
 {
     int x = threadIdx.x + blockDim.x * blockIdx.x;
@@ -122,12 +127,12 @@ __global__ void calculate_solution(double *d_w, double *d_u)
     {
         int index = x + y * N;
 
-        int left = (x - 1) + y * N;
-        int right = (x + 1) + y * N;
-        int top = x + (y - 1) * N;
-        int bottom = x + (y + 1) * N;
+        int west = (x - 1) + y * N;
+        int east = (x + 1) + y * N;
+        int north = x + (y - 1) * N;
+        int south = x + (y + 1) * N;
 
-        d_w[index] = (d_u[left] + d_u[right] + d_u[top] + d_u[bottom]) / 4.0;
+        d_w[index] = (d_u[north] + d_u[south] + d_u[east] + d_u[west]) / 4.0;
     }
 
     __threadfence();
