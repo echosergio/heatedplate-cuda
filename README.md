@@ -7,13 +7,13 @@ The physical region, and the boundary conditions, are suggested
 by this diagram;
 
 ```
-                                       W = 0
-                                 +------------------+
-                                 |                  |
-                        W = 100  |                  | W = 100
-                                 |                  |
-                                 +------------------+
-                                       W = 100
+                                               W = 0
+                                         +------------------+
+                                         |                  |
+                                W = 100  |                  | W = 100
+                                         |                  |
+                                         +------------------+
+                                               W = 100
 ```
 
 The region is covered with a grid of M by N nodes, and an N by N
@@ -22,13 +22,13 @@ array indices and locations in the region is suggested by giving the
 indices of the four corners:
 
 ```
-                                      I = 0
-                              [0][0]-------------[0][N-1]
-                                 |                  |
-                          J = 0  |                  |  J = N-1
-                                 |                  |
-                            [M-1][0]-----------[M-1][N-1]
-                                      I = M-1
+                                              I = 0
+                                      [0][0]-------------[0][N-1]
+                                         |                  |
+                                  J = 0  |                  |  J = N-1
+                                         |                  |
+                                    [M-1][0]-----------[M-1][N-1]
+                                              I = M-1
 ```
 The steady state solution to the discrete heat equation satisfies the
 following condition at an interior grid point:
