@@ -55,5 +55,4 @@ rsync-files*
 grid_to_bmp
 
 # Generated files
-*.bmp
 *.txt
