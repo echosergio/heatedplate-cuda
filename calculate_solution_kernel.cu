@@ -37,7 +37,7 @@ __global__ void copy_grid(double *d_w, double *d_u)
     if (x < M && y < N)
         d_u[x + y * N] = d_w[x + y * N];
 
-    __threadfence();
+    __syncthreads();
 
     return;
 }
@@ -46,7 +46,39 @@ __device__ double d_epsilon;
 
 __device__ double d_epsilon_reduction_max[NUM_ELEMENTS];
 
-__device__ int d_epsilon_slice_counter;
+__device__ double d_epsilon_reduction_max_new[SHARED_MEMORY_ARRAY_SIZE];
+
+__global__ void epsilon_reduction_local()
+{
+    __shared__ double partial_epsilon_reduction_max[SHARED_MEMORY_ARRAY_SIZE];
+
+    int x = threadIdx.x + blockDim.x * blockIdx.x;
+    int y = threadIdx.y + blockDim.y * blockIdx.y;
+
+    int index = (x + y * 32) + (gridDim.x * (blockDim.x * blockDim.y) * blockIdx.y) + ((blockDim.x * blockDim.y) * blockIdx.x);
+
+    if (index < SHARED_MEMORY_ARRAY_SIZE)
+    {
+        partial_epsilon_reduction_max[index] = 0;
+        __syncthreads();
+
+        partial_epsilon_reduction_max[index] = d_epsilon_reduction_max_new[index];
+        __syncthreads();
+
+        for (unsigned int stride = SHARED_MEMORY_ARRAY_SIZE / 2; stride > 0; stride /= 2)
+        {
+            if (index < stride)
+                partial_epsilon_reduction_max[index] = max(partial_epsilon_reduction_max[index], partial_epsilon_reduction_max[index + stride]);
+            __syncthreads();
+        }
+
+        if (index == 0)
+            d_epsilon = partial_epsilon_reduction_max[index];
+        __threadfence();
+    }
+
+    return;
+}
 
 // CUDA kernel to calculate the max value from the difference between two estimates of the solution
 //! @param d_w new matrix solution
@@ -58,61 +90,30 @@ __global__ void epsilon_reduction(double *d_w, double *d_u)
     int x = threadIdx.x + blockDim.x * blockIdx.x;
     int y = threadIdx.y + blockDim.y * blockIdx.y;
 
-    if (x < M && y < N)
+    int index = (x + y * 32) + (gridDim.x * (blockDim.x * blockDim.y) * blockIdx.y) + ((blockDim.x * blockDim.y) * blockIdx.x);
+
+    /*if (blockIdx.x == 0 && blockIdx.y == 1 )
     {
-        int index = x + y * N;
+        printf(" index: %d, x: %d = threadIdx.x: %d + blockDim.x: %d * blockIdx.x: %d | y: %d = threadIdx.y: %d + blockDim.y: %d * blockIdx.y: %d,\n",index, x, threadIdx.x, blockDim.x, blockIdx.x, y, threadIdx.y, blockDim.y, blockIdx.y);
+    }*/
 
-        if (index == 0)
-            d_epsilon_slice_counter = NUM_ELEMENTS;
-        __threadfence();
-
+    if (index < NUM_ELEMENTS)
+    {
         d_epsilon_reduction_max[index] = fabs(d_w[index] - d_u[index]);
-        __threadfence();
 
-        while (d_epsilon_slice_counter > SHARED_MEMORY_ARRAY_SIZE)
-        {
-            int local_index = index % SHARED_MEMORY_ARRAY_SIZE;
-            partial_epsilon_reduction_max[local_index] = d_epsilon_reduction_max[index];
-            __syncthreads();
-
-            for (unsigned int stride = SHARED_MEMORY_ARRAY_SIZE / 2; stride > 0; stride /= 2)
-            {
-                if (local_index < stride)
-                    partial_epsilon_reduction_max[local_index] = max(partial_epsilon_reduction_max[local_index], partial_epsilon_reduction_max[local_index + stride]);
-                __syncthreads();
-            }
-
-            if (local_index == 0)
-                d_epsilon_reduction_max[(int)(index / SHARED_MEMORY_ARRAY_SIZE)] = partial_epsilon_reduction_max[local_index];
-            __threadfence();
-
-            if (index == 0)
-                d_epsilon_slice_counter /= SHARED_MEMORY_ARRAY_SIZE;
-            __threadfence();
-        }
-
+        int local_index = index % SHARED_MEMORY_ARRAY_SIZE;
+        partial_epsilon_reduction_max[local_index] = d_epsilon_reduction_max[index];
         __syncthreads();
-        __threadfence();
 
-        if (index < SHARED_MEMORY_ARRAY_SIZE)
+        for (unsigned int stride = SHARED_MEMORY_ARRAY_SIZE / 2; stride > 0; stride /= 2)
         {
-            partial_epsilon_reduction_max[index] = 0;
+            if (local_index < stride)
+                partial_epsilon_reduction_max[local_index] = max(partial_epsilon_reduction_max[local_index], partial_epsilon_reduction_max[local_index + stride]);
             __syncthreads();
-
-            partial_epsilon_reduction_max[index] = d_epsilon_reduction_max[index];
-            __syncthreads();
-
-            for (unsigned int stride = SHARED_MEMORY_ARRAY_SIZE / 2; stride > 0; stride /= 2)
-            {
-                if (index < stride)
-                    partial_epsilon_reduction_max[index] = max(partial_epsilon_reduction_max[index], partial_epsilon_reduction_max[index + stride]);
-                __syncthreads();
-            }
-
-            if (index == 0)
-                d_epsilon = partial_epsilon_reduction_max[index];
-            __threadfence();
         }
+
+        if (local_index == 0)
+            d_epsilon_reduction_max_new[(int)(index / SHARED_MEMORY_ARRAY_SIZE)] = partial_epsilon_reduction_max[local_index];
     }
 
     return;
@@ -138,7 +139,7 @@ __global__ void calculate_solution(double *d_w, double *d_u)
         d_w[index] = (d_u[north] + d_u[south] + d_u[east] + d_u[west]) / 4.0;
     }
 
-    __threadfence();
+    __syncthreads();
 
     return;
 }
@@ -185,6 +186,7 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
         copy_grid<<<dimGrid, dimBlock>>>(d_w, d_u);
         calculate_solution<<<dimGrid, dimBlock>>>(d_w, d_u);
         epsilon_reduction<<<dimGrid, dimBlock>>>(d_w, d_u);
+        epsilon_reduction_local<<<dimGrid, dimBlock>>>();
 
         cudaDeviceSynchronize();
 
