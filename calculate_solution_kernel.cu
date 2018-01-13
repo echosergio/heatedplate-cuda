@@ -205,3 +205,5 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
 #undef M
 #undef N
 #undef NUM_ELEMENTS
+#undef DIM_GRID
+#undef DIM_BLOCK
