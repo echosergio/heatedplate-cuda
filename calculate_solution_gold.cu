@@ -62,7 +62,7 @@ void calculate_solution_gold(double w[M][N], double epsilon)
             printf("  %8d  %lg\n", iterations, diff);
             iterations_print = 2 * iterations_print;
         }
-    } //fin while epsilon
+    } 
 
     ctime2 = cpu_time();
     ctime = ctime2 - ctime1;

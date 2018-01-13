@@ -1,7 +1,8 @@
 #define M 500
 #define N 500
-#define NUM_ELEMENTS M *N
-#define SHARED_MEMORY_ARRAY_SIZE 1024
+#define NUM_ELEMENTS M * N
+#define DIM_GRID 256
+#define DIM_BLOCK 1024
 
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__))
 
@@ -26,9 +27,6 @@ static void checkCUDAError(const char *msg, const char *file, int line)
     }
 }
 
-// CUDA kernel to copy one matrix to other
-//! @param d_w source matrix
-//! @param d_u destination matrix
 __global__ void copy_grid(double *d_w, double *d_u)
 {
     int x = threadIdx.x + blockDim.x * blockIdx.x;
@@ -44,84 +42,70 @@ __global__ void copy_grid(double *d_w, double *d_u)
 
 __device__ double d_epsilon;
 
-__device__ double d_epsilon_reduction_max[NUM_ELEMENTS];
+__device__ double d_epsilon_reduction[NUM_ELEMENTS];
 
-__device__ double d_epsilon_reduction_max_new[SHARED_MEMORY_ARRAY_SIZE];
+__device__ double d_epsilon_reduction_results[DIM_BLOCK];
 
-__global__ void epsilon_reduction_local()
+__global__ void epsilon_reduction(double *d_w, double *d_u)
 {
-    __shared__ double partial_epsilon_reduction_max[SHARED_MEMORY_ARRAY_SIZE];
+    __shared__ double local_reduction[DIM_BLOCK];
 
-    int x = threadIdx.x + blockDim.x * blockIdx.x;
-    int y = threadIdx.y + blockDim.y * blockIdx.y;
+    int stride = blockDim.x * gridDim.x;
 
-    int index = (x + y * 32) + (gridDim.x * (blockDim.x * blockDim.y) * blockIdx.y) + ((blockDim.x * blockDim.y) * blockIdx.x);
+    int index = threadIdx.x + blockDim.x * blockIdx.x;
+    int local_index = threadIdx.x;
 
-    if (index < SHARED_MEMORY_ARRAY_SIZE)
+    local_reduction[local_index] = fabs(d_w[index] - d_u[index]); 
+
+    if ((index + stride) < NUM_ELEMENTS && local_reduction[local_index] < fabs(d_w[index + stride] - d_u[index + stride]))
+        local_reduction[local_index] = fabs(d_w[index + stride] - d_u[index + stride]);
+
+    __syncthreads();
+
+    for (int i = blockDim.x>>1; i>0; i>>=1)
     {
-        partial_epsilon_reduction_max[index] = 0;
+        if (local_index < i && local_reduction[local_index] < local_reduction[local_index + i])
+            local_reduction[local_index] = local_reduction[local_index + i];
+
+        __syncthreads();
+    }
+
+    if(local_index == 0) 
+        d_epsilon_reduction_results[blockIdx.x] = local_reduction[local_index];
+
+    return;
+}
+
+__global__ void epsilon_reduction_results()
+{
+    __shared__ double local_reduction[DIM_BLOCK];
+
+    int index = threadIdx.x + blockDim.x * blockIdx.x;
+
+    if (index < blockDim.x)
+    {
+        local_reduction[index] = 0;
         __syncthreads();
 
-        partial_epsilon_reduction_max[index] = d_epsilon_reduction_max_new[index];
+        local_reduction[index] = d_epsilon_reduction_results[index];
         __syncthreads();
 
-        for (unsigned int stride = SHARED_MEMORY_ARRAY_SIZE / 2; stride > 0; stride /= 2)
+        for (int i = blockDim.x>>1; i>0; i>>=1)
         {
-            if (index < stride)
-                partial_epsilon_reduction_max[index] = max(partial_epsilon_reduction_max[index], partial_epsilon_reduction_max[index + stride]);
+            if (index < i && local_reduction[index] < local_reduction[index + i])
+                local_reduction[index] = local_reduction[index + i];
+
             __syncthreads();
         }
 
         if (index == 0)
-            d_epsilon = partial_epsilon_reduction_max[index];
+            d_epsilon = local_reduction[index];
         __threadfence();
     }
 
     return;
 }
 
-// CUDA kernel to calculate the max value from the difference between two estimates of the solution
-//! @param d_w new matrix solution
-//! @param d_u previous matrix solution
-__global__ void epsilon_reduction(double *d_w, double *d_u)
-{
-    __shared__ double partial_epsilon_reduction_max[SHARED_MEMORY_ARRAY_SIZE];
-
-    int x = threadIdx.x + blockDim.x * blockIdx.x;
-    int y = threadIdx.y + blockDim.y * blockIdx.y;
-
-    int index = (x + y * 32) + (gridDim.x * (blockDim.x * blockDim.y) * blockIdx.y) + ((blockDim.x * blockDim.y) * blockIdx.x);
-
-    /*if (blockIdx.x == 0 && blockIdx.y == 1 )
-    {
-        printf(" index: %d, x: %d = threadIdx.x: %d + blockDim.x: %d * blockIdx.x: %d | y: %d = threadIdx.y: %d + blockDim.y: %d * blockIdx.y: %d,\n",index, x, threadIdx.x, blockDim.x, blockIdx.x, y, threadIdx.y, blockDim.y, blockIdx.y);
-    }*/
-
-    if (index < NUM_ELEMENTS)
-    {
-        d_epsilon_reduction_max[index] = fabs(d_w[index] - d_u[index]);
-
-        int local_index = index % SHARED_MEMORY_ARRAY_SIZE;
-        partial_epsilon_reduction_max[local_index] = d_epsilon_reduction_max[index];
-        __syncthreads();
-
-        for (unsigned int stride = SHARED_MEMORY_ARRAY_SIZE / 2; stride > 0; stride /= 2)
-        {
-            if (local_index < stride)
-                partial_epsilon_reduction_max[local_index] = max(partial_epsilon_reduction_max[local_index], partial_epsilon_reduction_max[local_index + stride]);
-            __syncthreads();
-        }
-
-        if (local_index == 0)
-            d_epsilon_reduction_max_new[(int)(index / SHARED_MEMORY_ARRAY_SIZE)] = partial_epsilon_reduction_max[local_index];
-    }
-
-    return;
-}
-
-// CUDA kernel to calculate the steady state solution to the discrete heat equation
-//! @param d_w output matrix
-//! @param d_u input matrix
 __global__ void calculate_solution(double *d_w, double *d_u)
 {
     int x = threadIdx.x + blockDim.x * blockIdx.x;
@@ -160,14 +144,11 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
     double *d_w = (double *)malloc(matrix_mem_size);
     double *d_u = (double *)malloc(matrix_mem_size);
 
-    // Memory allocation on device side
     HANDLE_ERROR(cudaMalloc((void **)&d_w, matrix_mem_size));
     HANDLE_ERROR(cudaMalloc((void **)&d_u, matrix_mem_size));
 
-    // Copy from host memory to device memory
     HANDLE_ERROR(cudaMemcpy(d_w, w, matrix_mem_size, cudaMemcpyHostToDevice));
 
-    // Dimensions for a 2D matrix with max size 512
     dim3 dimGrid(16, 16);  // 256 blocks
     dim3 dimBlock(32, 32); // 1024 threads
 
@@ -185,8 +166,8 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
     {
         copy_grid<<<dimGrid, dimBlock>>>(d_w, d_u);
         calculate_solution<<<dimGrid, dimBlock>>>(d_w, d_u);
-        epsilon_reduction<<<dimGrid, dimBlock>>>(d_w, d_u);
-        epsilon_reduction_local<<<dimGrid, dimBlock>>>();
+        epsilon_reduction<<<256, 1024>>>(d_w, d_u);
+        epsilon_reduction_results<<<256, 1024>>>();
 
         cudaDeviceSynchronize();
 
@@ -210,9 +191,8 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
     printf("  %8d  %lg\n", iterations, diff);
     printf("\n");
     printf("  Error tolerance achieved.\n");
-    printf("  CUDA time = %f\n", ElapsedTime / 1000);
+    printf("  GPU time = %f\n", ElapsedTime / 1000);
 
-    // Copy from device memory back to host memory
     HANDLE_ERROR(cudaMemcpy(w, d_w, matrix_mem_size, cudaMemcpyDeviceToHost));
 
     cudaFree(d_w);
