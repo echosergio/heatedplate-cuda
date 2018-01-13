@@ -80,8 +80,8 @@ Reduction calculus using one dimension grid
 #define DIM_GRID 256
 #define DIM_BLOCK 1024
 
-epsilon_reduction<<<256, 1024>>>
-epsilon_reduction_results<<<256, 1024>>> 
+epsilon_reduction<<<DIM_GRID, DIM_BLOCK>>>
+epsilon_reduction_results<<<DIM_GRID, DIM_BLOCK>>> 
 ```
 
 ## Grid results

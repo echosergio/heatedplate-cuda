@@ -166,8 +166,8 @@ void calculate_solution_kernel(double w[M][N], double epsilon)
     {
         copy_grid<<<dimGrid, dimBlock>>>(d_w, d_u);
         calculate_solution<<<dimGrid, dimBlock>>>(d_w, d_u);
-        epsilon_reduction<<<256, 1024>>>(d_w, d_u);
-        epsilon_reduction_results<<<256, 1024>>>();
+        epsilon_reduction<<<DIM_GRID, DIM_BLOCK>>>(d_w, d_u);
+        epsilon_reduction_results<<<DIM_GRID, DIM_BLOCK>>>();
 
         cudaDeviceSynchronize();
 
