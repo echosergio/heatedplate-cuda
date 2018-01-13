@@ -64,17 +64,24 @@ The solution is limited to a 2D matrix with max dimension size of 512
 **Blocks in a grid**: gridDim.x * gridDim.y  
 **Threads in a block**: blockDim.x * blockDim.y * blockDim.z
 
-```
-dim3 dimGrid(16, 16);  // 256 blocks
-dim3 dimBlock(32, 32); // 1024 threads
-```
-
 The different parts than can be parallelized are divided into the following kernels:
 
 ```
+dim3 dimGrid(16, 16);  // 256 blocks
+dim3 dimBlock(32, 32); // 1024 threads
+
 copy_grid<<<dimGrid, dimBlock>>>  
 calculate_solution<<<dimGrid, dimBlock>>>  
-epsilon_reduction<<<dimGrid, dimBlock>>>  
+```
+
+Reduction calculus using one dimension grid
+
+```
+#define DIM_GRID 256
+#define DIM_BLOCK 1024
+
+epsilon_reduction<<<256, 1024>>>
+epsilon_reduction_results<<<256, 1024>>> 
 ```
 
 ## Grid results
