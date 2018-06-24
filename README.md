@@ -93,22 +93,22 @@ epsilon_reduction_results<<<DIM_GRID, DIM_BLOCK>>>
   </tr>
   <tr>
     <th style="text-align: center;">0.1</td>
-    <th style="text-align: center;"><img src="https://raw.githubusercontent.com/sergiovhe/heatedplate-cuda/master/img/0.1.bmp" alt="0.1.bmp" style="width: 80px;"/></td>
+    <th style="text-align: center;"><img src="https://raw.githubusercontent.com/sergiovhe/heatedplate-cuda/master/img/0.1.bmp" alt="0.1.bmp" height="200px" width="200px"/></td>
   </tr>
   <tr>
     <th style="text-align: center;">0.01</td>
-    <th style="text-align: center;"><img src="https://raw.githubusercontent.com/sergiovhe/heatedplate-cuda/master/img/0.01.bmp" alt="0.01.bmp" style="width: 80px;"/></td>
+    <th style="text-align: center;"><img src="https://raw.githubusercontent.com/sergiovhe/heatedplate-cuda/master/img/0.01.bmp" alt="0.01.bmp" height="200px" width="200px"/></td>
   </tr>
   <tr>
     <th style="text-align: center;">0.001</td>
-    <th style="text-align: center;"><img src="https://raw.githubusercontent.com/sergiovhe/heatedplate-cuda/master/img/0.001.bmp" alt="0.001.bmp" style="width: 80px;"/></td>
+    <th style="text-align: center;"><img src="https://raw.githubusercontent.com/sergiovhe/heatedplate-cuda/master/img/0.001.bmp" alt="0.001.bmp" height="200px" width="200px"/></td>
   </tr>
   <tr>
     <th style="text-align: center;">0.0001</td>
-    <th style="text-align: center;"><img src="https://raw.githubusercontent.com/sergiovhe/heatedplate-cuda/master/img/0.0001.bmp" alt="0.0001.bmp" style="width: 80px;"/></td>
+    <th style="text-align: center;"><img src="https://raw.githubusercontent.com/sergiovhe/heatedplate-cuda/master/img/0.0001.bmp" alt="0.0001.bmp" height="200px" width="200px"/></td>
   </tr>
   <tr>
     <th style="text-align: center;">0.00001</td>
-    <th style="text-align: center;"><img src="https://raw.githubusercontent.com/sergiovhe/heatedplate-cuda/master/img/0.00001.bmp" alt="0.00001.bmp" style="width: 80px;"/></td>
+    <th style="text-align: center;"><img src="https://raw.githubusercontent.com/sergiovhe/heatedplate-cuda/master/img/0.00001.bmp" alt="0.00001.bmp" height="200px" width="200px"/></td>
   </tr>
 </table>
